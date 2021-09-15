@@ -16,7 +16,7 @@ jobs:
   build:
     working_directory: /home/circleci/go/src/github.com/fluxcd/helm-operator
     machine:
-      image: ubuntu-1604:201903-01
+      image: ubuntu-1604:202007-01
     resource_class: large
     environment:
       GO_VERSION: 1.14.2
@@ -26,6 +26,12 @@ jobs:
       PATH: /bin:/usr/bin:/usr/local/go/bin:/home/circleci/go/bin
     steps:
       - checkout
+      - run: mkdir -vp ~/.docker/cli-plugins/
+      - run: curl --silent -L --output ~/.docker/cli-plugins/docker-buildx https://github.com/docker/buildx/releases/download/v0.3.1/buildx-v0.3.1.linux-amd64
+      - run: chmod a+x ~/.docker/cli-plugins/docker-buildx
+      - run: docker login -u ${DOCKER_USERNAME} -p ${DOCKER_PASSWORD}
+      - run: docker run -it --rm --privileged tonistiigi/binfmt --install all
+      - run: docker buildx create --use --name mybuilder
       - run:
           name: Install Golang
           command: |
@@ -45,7 +51,6 @@ jobs:
             # `/var/lib/apt/lists/lock`.
             # https://support.circleci.com/hc/en-us/articles/360021256633-Apt-Get-Update-Is-Slow-Or-Locked
             sudo killall apt-get || true
-
             sudo apt-get update
             sudo apt-get install jq
             git version
@@ -88,13 +93,11 @@ jobs:
           command: |
             if [ -z "${CIRCLE_TAG}" -a "${CIRCLE_BRANCH}" == "master" ]; then
               echo "$DOCKER_FLUXCD_PASSWORD" | docker login --username "$DOCKER_FLUXCD_USER" --password-stdin
-
               docker tag "docker.io/fluxcd/helm-operator:$(docker/image-tag)" "docker.io/fluxcd/helm-operator-prerelease:$(docker/image-tag)"
               docker push "docker.io/fluxcd/helm-operator-prerelease:$(docker/image-tag)"
             fi
             if [ -z "${CIRCLE_TAG}" -a "${CIRCLE_BRANCH}" == "helm-v3-dev" ]; then
               echo "$DOCKER_FLUXCD_PASSWORD" | docker login --username "$DOCKER_FLUXCD_USER" --password-stdin
-
               docker tag "docker.io/fluxcd/helm-operator:$(docker/image-tag)" "docker.io/fluxcd/helm-operator-prerelease:$(docker/image-tag)"
               docker push "docker.io/fluxcd/helm-operator-prerelease:$(docker/image-tag)"
             fi
@@ -104,20 +107,16 @@ jobs:
             if echo "${CIRCLE_TAG}" | grep -Eq "^v[0-9]+(\.[0-9]+)*(-[a-z0-9]+)?$"; then
               echo "$DOCKER_FLUXCD_PASSWORD" | docker login --username "$DOCKER_FLUXCD_USER" --password-stdin
               docker push "docker.io/fluxcd/helm-operator:$(docker/image-tag)"
-
               # Republish tag _without_ the `v` prefix, for historical reasons
               git config --global user.email fluxcdbot@users.noreply.github.com
               git config --global user.name fluxcdbot
-
               REPOSITORY="https://fluxcdbot:${GITHUB_TOKEN}@github.com/fluxcd/helm-operator.git"
               git remote set-url origin ${REPOSITORY}
-
               # Remove `v` prefix using bash string manipulation
               VLESS_TAG=${CIRCLE_TAG#v}
               git tag ${VLESS_TAG} $(git rev-list -n1 ${CIRCLE_TAG})
               git push origin ${VLESS_TAG}
             fi
-
 workflows:
   version: 2
   build-and-push:

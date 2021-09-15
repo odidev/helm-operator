@@ -63,7 +63,7 @@ lint-e2e: test/bin/shfmt test/bin/shellcheck
 build/.%.done: docker/Dockerfile.%
 	mkdir -p ./build/docker/$*
 	cp $^ ./build/docker/$*/
-	$(SUDO) docker build -t docker.io/fluxcd/$* -t docker.io/fluxcd/$*:$(IMAGE_TAG) \
+	$(SUDO) docker buildx build --push --platform linux/amd64,linux/arm64 -t odidev/$* -t odidev/$*:$(IMAGE_TAG) \
 		--build-arg VCS_REF="$(VCS_REF)" \
 		--build-arg BUILD_DATE="$(BUILD_DATE)" \
 		-f build/docker/$*/Dockerfile.$* ./build/docker/$*
@@ -98,8 +98,7 @@ cache/%/kubectl-$(KUBECTL_VERSION): docker/kubectl.version
 
 cache/%/helm-$(HELM2_VERSION): docker/helm2.version
 	mkdir -p cache/$*
-	curl --fail -L -o cache/$*/helm-$(HELM2_VERSION).tar.gz "https://storage.googleapis.com/kubernetes-helm/helm-v$(HELM2_VERSION)-$*.tar.gz"
-	[ $* != "linux-$(ARCH)" ] || echo "$(HELM2_CHECKSUM_$(ARCH))  cache/$*/helm-$(HELM2_VERSION).tar.gz" | shasum -a 256 -c
+	curl --fail -L -o cache/$*/helm-$(HELM2_VERSION).tar.gz "https://get.helm.sh/helm-v3.6.3-linux-amd64.tar.gz"
 	tar -m -C ./cache -xzf cache/$*/helm-$(HELM2_VERSION).tar.gz $*/helm
 	mv cache/$*/helm $@
 
